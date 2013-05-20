@@ -4,21 +4,33 @@ from fabric.contrib.files import *
 # Requires https://github.com/ilogue/fexpect
 from ilogue.fexpect import expect, expecting, run as erun, sudo as esudo
 
-env.hosts = ['172.16.133.194']
+if not os.path.exists('settings.py'):
+    print 'initializing settings file...'
+    print
+    baseSettings = """from fabric.api import *
+env.hosts = ['127.0.0.1']
+env.roledefs = {
+    'initial-setup': ['root@127.0.0.1',],
+    'otherwise': ['127.0.0.1'],
+}"""
+    local('echo "%s" > settings.py' % baseSettings)
+    print
+    print 'You should fill out the server settings in settings.py'
+    exit(0)
+else:
+    import settings
 
 # Don't have to set env.user use ~/.fabricrc
 # And set user = your_ssh_user_name
 # Or you can run setup_env_user and answer the questions
 #env.user = 'someuser'
 
-env.roledefs = {
-    'initial-setup': ['root@172.16.133.194',],
-    'otherwise': ['172.16.133.194'],
-}
+def haveRC():
+    return os.path.exists(env.rcfile)
 
-def checkUser(func):
+def runChecks(func):
     def check(*args, **kargs):
-        if not os.path.exists(env.rcfile):
+        if not haveRC():
             print 'Please run setup_env_user to setup ssh username'
             exit(0)
         elif not 'user =' in open('{rc}'.format(rc=env.rcfile)).read():
@@ -34,7 +46,7 @@ def localInfo():
 # Setup Environment User
 def setup_env_user():
     name = prompt('Please input your ssh username for the remote system: ')
-    if not os.path.exists(env.rcfile):
+    if not haveRC():
         local('touch {rc}'.format(rc=env.rcfile))
     if 'user =' in open('{rc}'.format(rc=env.rcfile)).read():
         local('sed -i \'s/^user.*=.*$/user = {username}/g\' {rc}'.format(username=name, rc=env.rcfile))
@@ -83,11 +95,11 @@ def check_package_installed(package_name):
 ######################## Server Calls #########################
 
 # test
-@checkUser
+@runChecks
 def uname():
     runcmd('uname -a')
 
-@checkUser
+@runChecks
 def add_user(username, password, wheel, resetpasswd):
     usercmd = 'adduser {name}'.format(name=username)
     if wheel == True:
@@ -99,14 +111,14 @@ def add_user(username, password, wheel, resetpasswd):
     # Add to ssh
     sed('/etc/ssh/sshd_config', 'AllowUsers (.*)$', 'AllowUsers \\1 {name}'.format(name=username), '', useSudo())
 
-@checkUser
+@runChecks
 def enable_root_ssh(enable):
     if enable == True:
         sed('/etc/ssh/sshd_config', '^(#)PermitRootLogin\ yes', 'PermitRootLogin\ yes', '', useSudo())
     else:
         sed('/etc/ssh/sshd_config', '^(#)PermitRootLogin\ yes', 'PermitRootLogin\ no', '', useSudo())
     
-@checkUser
+@runChecks
 def add_vhost(userdir, servername):
     # check if userdir exists
     if not exists('/home/{user}'.format(user=userdir)):
@@ -135,7 +147,7 @@ def add_vhost(userdir, servername):
     runcmd('chcon -R system_u:object_r:httpd_sys_content_t:s0 /home/{user}'.format(user=userdir))
     runcmd('service httpd restart')
 
-@checkUser
+@runChecks
 def add_vhost_ssl(userdir, servername):
     # check if userdir exists
     if not exists('/home/{user}'.format(user=userdir)):
@@ -221,7 +233,7 @@ def add_vhost_ssl(userdir, servername):
     runcmd('chcon -R system_u:object_r:httpd_sys_content_t:s0 /home/{user}'.format(user=userdir))
     runcmd('service httpd restart')
 
-@checkUser
+@runChecks
 def install_lamp(update=True):
     if update == True:
         # update
@@ -273,7 +285,7 @@ def install_lamp(update=True):
     runcmd('service httpd start')
 
 # Setup MySql
-@checkUser
+@runChecks
 def install_mysql(password='umlawdevel'):
     if not check_package_installed('mysql-server'):
         runcmd('yum -y update')
@@ -296,7 +308,7 @@ def install_mysql(password='umlawdevel'):
     
 
 # Setup git (Operates over ssh so no need to modify iptables)
-@checkUser
+@runChecks
 def install_git():
     if not check_package_installed('git'):
         runcmd('yum -y install git')
@@ -314,7 +326,7 @@ def install_git():
         runcmd('chown -R git:git /opt/git')
 
 # create git repository
-@checkUser
+@runChecks
 def create_git_repository(name):
     if not exists('/home/git'):
         print 'Gitorius must be installed first before trying to add repositories'
@@ -325,7 +337,7 @@ def create_git_repository(name):
     runcmd('chown -R git:git /opt/git/{repo}.git'.format(repo=name))
 
 # Create ssl keys for current computer and append to git so that you may commit changes
-@checkUser
+@runChecks
 def create_git_keys():
     if not check_package_installed('git'):
         print 'Gitorius must be installed first before trying to add ssh keys'
@@ -337,24 +349,24 @@ def create_git_keys():
     runcmd('rm -fr /root/git_ssh_temp_key')
 
 # Setup SVN
-@checkUser
+@runChecks
 def install_svn():
     if not check_package_installed('subversion'):
         runcmd('yum -y install subversion')
 
 # Change Default Keyboard
-@checkUser
+@runChecks
 def change_keyboard(keyboard):
     sed('/etc/sysconfig/keyboard', 'KEYTABLE=".*"', 'KEYTABLE="{kbd}"'.format(kbd=keyboard), '', useSudo())
     reboot()
 
 # Reboot system
-@checkUser
+@runChecks
 def reboot():
     runcmd('reboot')
 
 # Initialize the box
-@checkUser
+@runChecks
 @roles('initial-setup')
 def initialize_box():
     # update
