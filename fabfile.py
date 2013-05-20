@@ -4,7 +4,7 @@ from fabric.contrib.files import *
 # Requires https://github.com/ilogue/fexpect
 from ilogue.fexpect import expect, expecting, run as erun, sudo as esudo
 
-# This assuming yum based repositories
+# This assuming yum based repositories (CentOS)
 # TODO
 # Generalize to use either apt or yum
 
@@ -13,10 +13,12 @@ if not os.path.exists('settings.py'):
     print
     baseSettings = """from fabric.api import *
 env.hosts = ['127.0.0.1']
-env.roledefs = {
-    'initial-setup': ['root@127.0.0.1',],
-    'otherwise': ['127.0.0.1'],
-}"""
+
+# This can be used to decorate functions, not used right now
+#env.roledefs = {
+#    'initial-setup': ['root@127.0.0.1',],
+#    'otherwise': ['127.0.0.1'],
+#}"""
     local('echo "%s" > settings.py' % baseSettings)
     print
     print 'You should fill out the server settings in settings.py'
@@ -32,6 +34,7 @@ else:
 def haveRC():
     return os.path.exists(env.rcfile)
 
+# Decorator for checking ssh user name and other things
 def runChecks(func):
     def check(*args, **kargs):
         if not haveRC():
@@ -96,6 +99,16 @@ def check_package_installed(package_name):
             print 'Package %s is installed' % package_name
             return True
 
+# Fix arguments since they are passed as string
+def stringToBool(arg):
+    if arg == True or arg == 'y' or arg == 'Y' or arg == 'True' or arg == 'true':
+        return True
+    elif arg == False or arg == 'n' or arg == 'N' or arg == 'False' or arg == 'false':
+        return False
+    else:
+        print 'Argument expected is either y/Y/True/true or n/N/False/false'
+        exit(0)
+
 ######################## Server Calls #########################
 
 # test
@@ -106,6 +119,8 @@ def uname():
 @runChecks
 def add_user(username, password, wheel, resetpasswd):
     usercmd = 'adduser {name}'.format(name=username)
+    wheel = stringToBool(wheel)
+    resetpasswd = stringToBool(resetpasswd)
     if wheel == True:
         usercmd = usercmd + ' -G wheel'
     runcmd(usercmd)
@@ -117,9 +132,9 @@ def add_user(username, password, wheel, resetpasswd):
 
 @runChecks
 def enable_root_ssh(enable):
-    if enable == True:
+    if stringToBool(enable) == True:
         sed('/etc/ssh/sshd_config', '^(#)PermitRootLogin\ yes', 'PermitRootLogin\ yes', '', useSudo())
-    else:
+    elif 'n':
         sed('/etc/ssh/sshd_config', '^(#)PermitRootLogin\ yes', 'PermitRootLogin\ no', '', useSudo())
     
 @runChecks
@@ -239,7 +254,7 @@ def add_vhost_ssl(userdir, servername):
 
 @runChecks
 def install_lamp(update=True):
-    if update == True:
+    if stringToBool(update) == True:
         # update
         runcmd('yum -y update')
     # Apache / PHP / 
@@ -428,7 +443,6 @@ def reboot():
 
 # Initialize the box
 @runChecks
-@roles('initial-setup')
 def initialize_box():
     # update
     runcmd('yum -y update')
