@@ -4,6 +4,10 @@ from fabric.contrib.files import *
 # Requires https://github.com/ilogue/fexpect
 from ilogue.fexpect import expect, expecting, run as erun, sudo as esudo
 
+# This assuming yum based repositories
+# TODO
+# Generalize to use either apt or yum
+
 if not os.path.exists('settings.py'):
     print 'initializing settings file...'
     print
@@ -353,6 +357,63 @@ def create_git_keys():
 def install_svn():
     if not check_package_installed('subversion'):
         runcmd('yum -y install subversion')
+
+# Install java
+@runChecks
+def install_java(platform='32', version='1.6'):
+    def grabPackage(using6, filename):
+        if using6 == True:
+            location = 'http://download.oracle.com/otn-pub/java/jdk/6u45-b06/'
+            runcmd('wget -O {1} --no-check-certificate --no-cookies --header "Cookie: gpw_e24=http%%3A%%2F%%2Fwww.oracle.com%%2F" "{0}{1}"'.format(location, filename))
+        else:
+            location = 'http://download.oracle.com/otn-pub/java/jdk/7u21-b11/'
+            runcmd('wget -O {1} --no-check-certificate --no-cookies --header "Cookie: gpw_e24=http%%3A%%2F%%2Fwww.oracle.com%%2F" "{0}{1}"'.format(location, filename))
+
+    def setAlternatives(version, release):
+        commands = [['jre/', 'java'], ['', 'jar'], ['','javac'], ['','javaws']]
+        for command in commands:
+            runcmd('alternatives --install /usr/bin/{0} {0} /usr/java/jdk{1}.0_{2}/{3}bin/{0} 20000'.format(command[1], version, release, command[0]))
+            runcmd('alternatives --set {0} /usr/java/jdk{1}.0_{2}/{3}bin/{0}'.format(command[1], version, release, command[0]))
+    
+    if version == '1.6':
+        #jdk and jre
+        packages = []
+        if platform == '32':
+            packages = ['jdk-6u45-linux-i586-rpm.bin', 'jre-6u45-linux-i586-rpm.bin']
+        elif packages == '64':
+            packages = ['jdk-6u45-linux-x64-rpm.bin', 'jre-6u45-linux-x64-rpm.bin']
+        else:
+            print 'Platform is either 32 or 64'
+            exit(0)
+        for package in packages:
+            runcmd('mkdir -p java-temp')
+            with cd('java-temp'):
+                grabPackage(True, package)
+                runcmd('chmod +x %s' % package)
+                runcmd('./%s' % package)
+            runcmd('rm -fr java-temp')
+        # alternatives
+        setAlternatives('1.6', '45')
+    elif version == '1.7':
+        packages = []
+        if platform == '32':
+            packages = ['jdk-7u21-linux-i586.rpm', 'jre-7u21-linux-i586.rpm']
+        elif platform == '64':
+            packages = ['jdk-7u21-linux-x64.rpm', 'jre-7u21-linux-x64.rpm']
+        else:
+            print 'Platform is either 32 or 64'
+            exit(0)
+        for package in packages:
+            runcmd('mkdir -p java-temp')
+            with cd('java-temp'):
+                grabPackage(False, package)
+                runcmd('rpm -Uvh %s' % package)
+            runcmd('rm -fr java-temp')
+        # alternatives
+        setAlternatives('1.7', '21')
+    else:
+        print 'Version is either 1.6 or 1.7'
+        exit(0)
 
 # Change Default Keyboard
 @runChecks
