@@ -24,7 +24,7 @@ env.hosts = ['127.0.0.1']
     print 'You should fill out the server settings in settings.py'
     exit(0)
 else:
-    import settings
+    import settings as ssettings
 
 # Don't have to set env.user use ~/.fabricrc
 # And set user = your_ssh_user_name
