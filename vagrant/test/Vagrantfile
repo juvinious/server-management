@@ -12,6 +12,7 @@ Vagrant::Config.run do |config|
   # The url from where the 'config.vm.box' box will be fetched if it
   # doesn't already exist on the user's system.
   # config.vm.box_url = "http://domain.com/path/to/above.box"
+  # Vagrant boxes: http://www.vagrantbox.es/
   config.vm.box_url = "http://grahamc.com/vagrant/ubuntu-12.04.2-i386-chef-11-omnibus.box"
 
   # Boot with a GUI so you can see the screen. (Default is headless)
