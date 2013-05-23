@@ -56,7 +56,7 @@ script "co_paintown" do
   user "vagrant"
   cwd "/home/vagrant"
   code <<-EOH
-  svn co svn://svn.code.sf.net/p/paintown/code/trunk paintown
+  svn co --ignore-externals svn://svn.code.sf.net/p/paintown/code/trunk paintown
   EOH
 end
 
