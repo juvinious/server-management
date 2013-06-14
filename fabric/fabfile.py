@@ -117,12 +117,11 @@ def uname():
     runcmd('uname -a')
 
 @runChecks
-def add_user(username, password, wheel, resetpasswd):
+def add_user(username, password, resetpasswd, groups=''):
     usercmd = 'adduser {name}'.format(name=username)
-    wheel = stringToBool(wheel)
     resetpasswd = stringToBool(resetpasswd)
-    if wheel == True:
-        usercmd = usercmd + ' -G wheel'
+    if groups:
+        usercmd += ' -G ' + groups
     runcmd(usercmd)
     runcmd('echo "{name}:{password}" | chpasswd'.format(name=username, password=password))
     if resetpasswd == True:
@@ -390,6 +389,11 @@ def install_java(platform='32', version='1.6'):
             runcmd('alternatives --install /usr/bin/{0} {0} /usr/java/jdk{1}.0_{2}/{3}bin/{0} 20000'.format(command[1], version, release, command[0]))
             runcmd('alternatives --set {0} /usr/java/jdk{1}.0_{2}/{3}bin/{0}'.format(command[1], version, release, command[0]))
     
+    def setEnvironment(version, release):
+        append('/etc/profile', 'export JAVA_HOME=/usr/java/jdk{0}.0_{1}'.format(version, release), useSudo())
+        append('/etc/profile', 'export JRE_HOME=$JAVA_HOME/jre'.format(version, release), useSudo())
+        append('/etc/profile', 'export PATH=$PATH:$JAVA_HOME/bin:$JRE_HOME/bin', useSudo())
+    
     if version == '1.6':
         #jdk and jre
         packages = []
@@ -409,6 +413,8 @@ def install_java(platform='32', version='1.6'):
             runcmd('rm -fr java-temp')
         # alternatives
         setAlternatives('1.6', '45')
+        # Environment
+        setEnvironment('1.6', '45')
     elif version == '1.7':
         packages = []
         if platform == '32':
@@ -426,9 +432,29 @@ def install_java(platform='32', version='1.6'):
             runcmd('rm -fr java-temp')
         # alternatives
         setAlternatives('1.7', '21')
+        # Environment
+        setEnvironment('1.7', '21')
     else:
         print 'Version is either 1.6 or 1.7'
         exit(0)
+
+def install_hadoop():
+    # install java 7
+    install_java('64', '1.7')
+    runcmd('mkdir -p hadoop')
+    with cd('hadoop'):
+        hadoop = 'hadoop-1.1.2-bin'
+        url = 'http://mirrors.ibiblio.org/apache/hadoop/common/stable/'
+        runcmd('wget ' + url + hadoop + '.tar.gz')
+        runcmd('tar xvzf ' + hadoop + '.tar.gz')
+        runcmd('mv ' + hadoop + '/opt/hadoop')
+    runcmd('rm -fr hadoop')
+    add_user('hadoop', 'hdevel', 'n')
+    runcmd('chown hadoop:hadoop /opt/hadoop')
+    append('/etc/profile', 'export HADOOP_OPTS=-Djava.net.preferIPv4Stack=true')
+    append('/etc/profile', 'export HADOOP_HOME=/opt/hadoop')
+    append('/etc/profile', 'export HADOOP=$HADOOP_HOME/bin/hadoop')
+    append('/etc/profile', 'export PATH=$PATH:$HADOOP_HOME/bin')
 
 # Change Default Keyboard
 @runChecks
