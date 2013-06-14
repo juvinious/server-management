@@ -438,16 +438,16 @@ def install_java(platform='32', version='1.6'):
         print 'Version is either 1.6 or 1.7'
         exit(0)
 
-def install_hadoop():
+def install_hadoop(platform='64', version='1.7'):
     # install java 7
-    install_java('64', '1.7')
+    install_java(platform, version)
     runcmd('mkdir -p hadoop')
     with cd('hadoop'):
-        hadoop = 'hadoop-1.1.2-bin'
+        hadoop = 'hadoop-1.1.2'
         url = 'http://mirrors.ibiblio.org/apache/hadoop/common/stable/'
-        runcmd('wget ' + url + hadoop + '.tar.gz')
-        runcmd('tar xvzf ' + hadoop + '.tar.gz')
-        runcmd('mv ' + hadoop + '/opt/hadoop')
+        runcmd('wget ' + url + hadoop + '-bin.tar.gz')
+        runcmd('tar xvzf ' + hadoop + '-bin.tar.gz')
+        runcmd('mv ' + hadoop + ' /opt/hadoop')
     runcmd('rm -fr hadoop')
     add_user('hadoop', 'hdevel', 'n')
     runcmd('chown hadoop:hadoop /opt/hadoop')
