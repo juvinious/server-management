@@ -208,7 +208,7 @@ def add_vhost_ssl(userdir, servername, password):
     with cd('~/cert-temp'):
         # generate private key
         privatekey = []
-        privatekey += expect('Enter pass phrase for server.key:', password))
+        privatekey += expect('Enter pass phrase for server.key:', password)
         privatekey += expect('Verifying - Enter pass phrase for server.key:', password)
 
         with expecting(privatekey):
