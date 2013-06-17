@@ -438,6 +438,8 @@ def install_java(platform='32', version='1.6'):
         print 'Version is either 1.6 or 1.7'
         exit(0)
 
+# Install hadoop
+@runChecks
 def install_hadoop(platform='64', version='1.7'):
     # install java 7
     install_java(platform, version)
@@ -455,6 +457,18 @@ def install_hadoop(platform='64', version='1.7'):
     append('/etc/profile', 'export HADOOP_HOME=/opt/hadoop')
     append('/etc/profile', 'export HADOOP=$HADOOP_HOME/bin/hadoop')
     append('/etc/profile', 'export PATH=$PATH:$HADOOP_HOME/bin')
+    
+# Install Kerberos
+@runChecks
+def install_kerberos():
+    # update
+    runcmd('yum -y update')
+    # Basic applications
+    app_list = ['pam_krb5',
+                'krb5-libs',
+                'krb5-workstation']
+    runcmd('yum -y install ' + ' '.join(map(str, app_list)))
+    
 
 # Change Default Keyboard
 @runChecks
