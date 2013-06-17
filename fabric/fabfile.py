@@ -166,7 +166,7 @@ def add_vhost(userdir, servername):
     runcmd('service httpd restart')
 
 @runChecks
-def add_vhost_ssl(userdir, servername):
+def add_vhost_ssl(userdir, servername, password):
     # check if userdir exists
     if not exists('/home/{user}'.format(user=userdir)):
         print 'User directory doesn\'t exist'
@@ -208,22 +208,22 @@ def add_vhost_ssl(userdir, servername):
     with cd('~/cert-temp'):
         # generate private key
         privatekey = []
-        privatekey += expect('Enter pass phrase for server.key:','umlawdevel')
-        privatekey += expect('Verifying - Enter pass phrase for server.key:','umlawdevel')
+        privatekey += expect('Enter pass phrase for server.key:', password))
+        privatekey += expect('Verifying - Enter pass phrase for server.key:', password)
 
         with expecting(privatekey):
             eruncmd('openssl genrsa -des3 -out server.key 1024')
             
         csr = []
-        csr += expect('Enter pass phrase for server.key:', 'umlawdevel')
+        csr += expect('Enter pass phrase for server.key:', password)
         csr += expect('Country Name \(2 letter code\) \[.*\]:', 'US')
         csr += expect('State or Province Name \(full name\) \[.*\]:', 'Florida')
-        csr += expect('Locality Name \(eg, city\) \[.*\]:', 'Coral Gables')
-        csr += expect('Organization Name \(eg, company\)', 'University of Miami')
-        csr += expect('Organizational Unit Name \(eg, section\) \[\]:', 'School of Law')
+        csr += expect('Locality Name \(eg, city\) \[.*\]:', 'Miami')
+        csr += expect('Organization Name \(eg, company\)', 'Miami')
+        csr += expect('Organizational Unit Name \(eg, section\) \[\]:', 'Miami')
         csr += expect('Common Name', servername);
-        csr += expect('Email Address \[\]:', 'noreply@law.miami.edu')
-        csr += expect('A challenge password \[\]:', 'umlawdevel')
+        csr += expect('Email Address \[\]:', 'noreply@noemail.com')
+        csr += expect('A challenge password \[\]:', password)
         csr += expect('An optional company name \[\]:', '')
         
         with expecting(csr):
@@ -232,7 +232,7 @@ def add_vhost_ssl(userdir, servername):
         runcmd('cp server.key server.key.org')
         
         serverkey = []
-        serverkey += expect('Enter pass phrase', 'umlawdevel')
+        serverkey += expect('Enter pass phrase', password)
         
         with expecting(serverkey):
             eruncmd('openssl rsa -in server.key.org -out server.key')
@@ -304,7 +304,7 @@ def install_lamp(update=True):
 
 # Setup MySql
 @runChecks
-def install_mysql(password='umlawdevel'):
+def install_mysql(password):
     if not check_package_installed('mysql-server'):
         runcmd('yum -y update')
         runcmd('yum -y install mysql-server')
