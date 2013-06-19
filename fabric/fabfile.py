@@ -469,7 +469,7 @@ def install_kerberos(ad_controller, ad_domain):
                 'fprintd-pam']
     runcmd('yum -y install ' + ' '.join(map(str, app_list)))
     # Reference http://www.server-world.info/en/note?os=CentOS_6&p=krb
-    runcmd('authconfig --enablekrb5 --krb5kdc=' + ad_controller + ' --krb5realm=' + ad_domain.upper() + " --update")
+    runcmd('authconfig --enablekrb5 --krb5kdc=' + ad_controller + ' --krb5realm=' + ad_domain.upper() + " --updateall")
     
 # Add kerberos user
 @runChecks
