@@ -128,6 +128,7 @@ def add_user(username, password, resetpasswd, groups=''):
         runcmd('chage -d 0 {name}'.format(name=username))
     # Add to ssh
     sed('/etc/ssh/sshd_config', 'AllowUsers (.*)$', 'AllowUsers \\1 {name}'.format(name=username), '', useSudo())
+    runcmd('/etc/init.d/sshd restart')
 
 @runChecks
 def enable_root_ssh(enable):
@@ -460,15 +461,26 @@ def install_hadoop(platform='64', version='1.7'):
     
 # Install Kerberos
 @runChecks
-def install_kerberos():
+def install_kerberos(ad_controller, ad_domain):
     # update
     runcmd('yum -y update')
     # Basic applications
     app_list = ['pam_krb5',
-                'krb5-libs',
-                'krb5-workstation']
+                'fprintd-pam']
     runcmd('yum -y install ' + ' '.join(map(str, app_list)))
+    # Reference http://www.server-world.info/en/note?os=CentOS_6&p=krb
+    runcmd('authconfig --enablekrb5 --krb5kdc=' + ad_controller + ' --krb5realm=' + ad_domain.upper() + " --update")
     
+# Add kerberos user
+@runChecks
+def add_kerberos_user(username, groups=''):
+    usercmd = 'adduser {name}'.format(name=username)
+    if groups:
+        usercmd += ' -G ' + groups
+    runcmd(usercmd)
+    # Add to ssh
+    sed('/etc/ssh/sshd_config', 'AllowUsers (.*)$', 'AllowUsers \\1 {name}'.format(name=username), '', useSudo())
+    runcmd('/etc/init.d/sshd restart')
 
 # Change Default Keyboard
 @runChecks
@@ -513,7 +525,7 @@ def initialize_box():
     
     lines = """
 # Users
-AllowUsers """
+AllowUsers root"""
     runcmd('echo "{content}" >> /etc/ssh/sshd_config'.format(content=lines))
     # Do not disable this unless you want a less secure box -miguel
     #runcmd('sed -i \'s/GSSAPIAuthentication\ yes/GSSAPIAuthentication\ no/g\' /etc/ssh/sshd_config')
