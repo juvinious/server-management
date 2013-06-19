@@ -511,7 +511,8 @@ def initialize_box():
                 'python',
                 'kernel-headers',
                 'make',
-                'gcc']
+                'gcc',
+                'ntp']
     runcmd('yum -y install ' + ' '.join(map(str, app_list)))
 
     # Setup sudoers to wheel
@@ -529,6 +530,10 @@ AllowUsers root"""
     runcmd('echo "{content}" >> /etc/ssh/sshd_config'.format(content=lines))
     # Do not disable this unless you want a less secure box -miguel
     #runcmd('sed -i \'s/GSSAPIAuthentication\ yes/GSSAPIAuthentication\ no/g\' /etc/ssh/sshd_config')
+    
+    # NTP
+    runcmd('chkconfig ntpd on')
+    runcmd('ntpdate pool.ntp.org')
     
     # reboot
     reboot()
