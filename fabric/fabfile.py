@@ -12,6 +12,7 @@ if not os.path.exists('settings.py'):
     print 'initializing settings file...'
     print
     baseSettings = """from fabric.api import *
+user = 'username'
 env.hosts = ['127.0.0.1']
 
 # This can be used to decorate functions, not used right now
