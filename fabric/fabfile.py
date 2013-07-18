@@ -12,14 +12,19 @@ if not os.path.exists('settings.py'):
     print 'initializing settings file...'
     print
     baseSettings = """from fabric.api import *
-user = 'username'
+env.user = None
 env.hosts = ['127.0.0.1']
 
 # This can be used to decorate functions, not used right now
 #env.roledefs = {
 #    'initial-setup': ['root@127.0.0.1',],
 #    'otherwise': ['127.0.0.1'],
-#}"""
+#}
+
+########### No need to modify this ###############
+if not env.user:
+    env.usernotset = True
+"""
     local('echo "%s" > settings.py' % baseSettings)
     print
     print 'You should fill out the server settings in settings.py'
@@ -27,23 +32,28 @@ env.hosts = ['127.0.0.1']
 else:
     import settings as ssettings
 
-# Don't have to set env.user use ~/.fabricrc
-# And set user = your_ssh_user_name
-# Or you can run setup_env_user and answer the questions
-#env.user = 'someuser'
-
 def haveRC():
     return os.path.exists(env.rcfile)
 
 # Decorator for checking ssh user name and other things
 def runChecks(func):
     def check(*args, **kargs):
+        # No need for RC right now
+        """
         if not haveRC():
             print 'Please run setup_env_user to setup ssh username'
             exit(0)
         elif not 'user =' in open('{rc}'.format(rc=env.rcfile)).read():
             print 'Please run setup_env_user to setup ssh username'
             exit(0)
+        """
+        try:
+            import getpass
+            if env.usernotset:
+                print 'Using default username {0} in environment'.format(getpass.getuser())
+                print 'You can modify this behavior by setting it in settings.py'
+        except AttributeError:
+            print 'Current username {0}'.format(env.user)
         return func(*args, **kargs)
     return check
 
@@ -304,6 +314,75 @@ def install_lamp(update=True):
     # Start apache
     runcmd('service httpd start')
 
+# Install Mono
+# http://stackoverflow.com/questions/14901271/installing-mod-mono-and-xsp4-on-centos-6-3
+@runChecks
+def install_mono(areyousure=False, update=True):
+    if stringToBool(areyousure) == False:
+        print 'Installing mono will require you to disable selinux'
+        print 'rerun fab install_mono:y to install anyways'
+        return
+    if stringToBool(update) == True:
+        # update
+        runcmd('yum -y update')
+    if not check_package_installed('httpd'):
+        print 'Install apache first (install_lamp)'
+        return
+    # Requisites 
+    app_list = ['httpd-devel',
+                'libpng-devel',
+                'libjpeg-devel',
+                'giflib-devel',
+                'libtiff-devel',
+                'libX11-devel',
+                'gcc*',
+                'fontconfig-devel',
+                'bzip2']
+    runcmd('yum -y install ' + ' '.join(map(str, app_list)))
+    runcmd('mkdir -p /opt/mono')
+    with cd('/tmp'):
+        modules = [['http://download.mono-project.com/sources/mono/', 'mono-2.10.9', '.tar.bz2'],
+                    ['http://download.mono-project.com/sources/xsp/', 'xsp-2.10.2', '.tar.bz2'],
+                    ['http://download.mono-project.com/sources/mod_mono/', 'mod_mono-2.10', '.tar.bz2'],
+                    ['http://download.mono-project.com/sources/libgdiplus/', 'libgdiplus-2.10', '.tar.bz2']]
+        for module in modules:
+            runcmd('wget {0}'.format(''.join(module)))
+            runcmd('tar xjf {0}'.format(module[1] + module[2]))
+        
+        # Do compilation of modules
+        # libgdiplus
+        with cd(modules[3][1]):
+            runcmd('./configure --prefix=/opt/mono')
+            runcmd('make && make install')
+        
+        # mono
+        with cd(modules[0][1]):
+            runcmd('./configure --prefix=/opt/mono --with-libgdiplus=/opt/mono')
+            runcmd('make && make install')
+            
+        # Export variables
+        append('/etc/profile', '######### MONO CONFIG ##############', useSudo())
+        append('/etc/profile', 'export PATH=$PATH:/opt/mono/bin', useSudo())
+        append('/etc/profile', 'export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/opt/mono/lib/pkgconfig', useSudo())
+        
+        # xsp
+        with cd(modules[1][1]):
+            runcmd('source /etc/profile')
+            runcmd('./configure --prefix=/opt/mono')
+            runcmd('make && make install')
+            
+        # mod_mono
+        with cd(modules[2][1]):
+            runcmd('source /etc/profile')
+            runcmd('./configure --prefix=/opt/mono --with-mono-prefix=/opt/mono')
+            runcmd('make && make install')
+        
+        # Add mono configuration
+        runcmd('cp /etc/httpd/conf/mod_mono.conf /etc/httpd/conf.d/')
+        
+        # SE Linux
+        runcmd("chcon -t httpd_sys_content_t \'/opt/mono/bin\'")
+
 # Setup MySql
 @runChecks
 def install_mysql(password):
@@ -513,7 +592,15 @@ def initialize_box():
                 'kernel-headers',
                 'make',
                 'gcc',
-                'ntp']
+                'bison',
+                'pkgconfig',
+                'glib2-devel',
+                'gettext',
+                'ntp',
+                'libtool',
+                'automake',
+                'autoconf',
+                'unzip']
     runcmd('yum -y install ' + ' '.join(map(str, app_list)))
 
     # Setup sudoers to wheel
