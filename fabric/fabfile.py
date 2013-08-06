@@ -171,9 +171,10 @@ def add_vhost(userdir, servername):
         </Directory>
 </VirtualHost>""".format(directory=userdir, server=servername)
     runcmd('echo "{content}" >> /etc/httpd/conf.d/vhost.conf'.format(content=entry))
-    runcmd('mkdir /home/{user}/www'.format(user=userdir))
+    runcmd('mkdir --context=system_u:object_r:httpd_config_t:s0 /home/{user}/www'.format(user=userdir))
     runcmd('chown -R {user}:{user} /home/{user}/www'.format(user=userdir))
-    runcmd('chmod -R 755 /home/{user}/www'.format(user=userdir))
+    #runcmd('chmod -R 755 /home/{user}/www'.format(user=userdir))
+    runcmd('chmod o+rx /home/{user} /home/{user}/www'.format(user=userdir))
     runcmd('chcon -R system_u:object_r:httpd_sys_content_t:s0 /home/{user}'.format(user=userdir))
     runcmd('service httpd restart')
 
@@ -257,9 +258,10 @@ def add_vhost_ssl(userdir, servername, password):
         runcmd('cp server.key /etc/httpd/ssl/{server}.key'.format(server=servername))
         
     runcmd('rm -fr ~/cert-temp')
-    runcmd('mkdir /home/{user}/wwws'.format(user=userdir))
+    runcmd('mkdir --context=system_u:object_r:httpd_config_t:s0 /home/{user}/wwws'.format(user=userdir))
     runcmd('chown -R {user}:{user} /home/{user}/wwws'.format(user=userdir))
-    runcmd('chmod -R 755 /home/{user}/wwws'.format(user=userdir))
+    #runcmd('chmod -R 755 /home/{user}/wwws'.format(user=userdir))
+    runcmd('chmod o+rx /home/{user} /home/{user}/wwws'.format(user=userdir))
     runcmd('chcon -R system_u:object_r:httpd_sys_content_t:s0 /home/{user}'.format(user=userdir))
     runcmd('service httpd restart')
 
@@ -308,8 +310,17 @@ def install_lamp(update=True):
     runcmd('/etc/init.d/iptables save')
     runcmd('service iptables restart')
     
+    # Uncomment virtual host name for *:80
+    uncomment('/etc/httpd/conf/httpd.conf', '^#NameVirtualHost\s\*\:80', useSudo())
+    
+    # Add index.html index.index.var index.php to DirectoryIndex
+    insert_line_after('^\<Directory /\>$', 'DirectoryIndex index.html index.html.var index.php', '/etc/httpd/conf/httpd.conf')
+    
     # Add virtual host name for ssl so _default_ doesn't take precedence
     append('/etc/httpd/conf.d/ssl.conf', 'NameVirtualHost *:443', useSudo())
+    
+    # Set selinux to allow reading of user directories
+    runcmd('setsebool -P httpd_read_user_content on')
     
     # Start apache
     runcmd('service httpd start')
@@ -390,17 +401,18 @@ def install_mysql(password):
         runcmd('yum -y update')
         runcmd('yum -y install mysql-server')
     runcmd('chkconfig --levels 235 mysqld on')
-    runcmd('service start mysqld')
+    runcmd('service mysqld start')
+    
     # Secure mysql
     setup = []
-    setup += expect('Enter current password for root (enter for none):','')
-    setup += expect('Set root password? \[Y/n\]','y')
+    setup += expect('Enter current password for root \(enter for none\):','')
+    setup += expect('Set root password\? \[Y/n\]','y')
     setup += expect('New password:', password)
     setup += expect('Re-enter new password:', password)
-    setup += expect('Remove anonymous users? \[Y/n\]', 'y')
-    setup += expect('Disallow root login remotely? \[Y/n\]', 'y')
-    setup += expect('Remove test database and access to it? \[Y/n\]', 'y')
-    setup += expect('Reload privilege tables now? \[Y/n\]', 'y')
+    setup += expect('Remove anonymous users\? \[Y/n\]', 'y')
+    setup += expect('Disallow root login remotely\? \[Y/n\]', 'y')
+    setup += expect('Remove test database and access to it\? \[Y/n\]', 'y')
+    setup += expect('Reload privilege tables now\? \[Y/n\]', 'y')
 
     with expecting(setup):
         eruncmd('mysql_secure_installation')
@@ -548,6 +560,7 @@ def install_kerberos(ad_controller, ad_domain):
     app_list = ['pam_krb5',
                 'fprintd-pam']
     runcmd('yum -y install ' + ' '.join(map(str, app_list)))
+    
     # Reference http://www.server-world.info/en/note?os=CentOS_6&p=krb
     runcmd('authconfig --enablekrb5 --krb5kdc=' + ad_controller + ' --krb5realm=' + ad_domain.upper() + " --updateall")
     
@@ -614,7 +627,11 @@ def initialize_box():
     
     lines = """
 # Users
-AllowUsers root"""
+AllowUsers root """
+
+    if not env.user == 'root':
+	lines += env.user
+	
     runcmd('echo "{content}" >> /etc/ssh/sshd_config'.format(content=lines))
     # Do not disable this unless you want a less secure box -miguel
     #runcmd('sed -i \'s/GSSAPIAuthentication\ yes/GSSAPIAuthentication\ no/g\' /etc/ssh/sshd_config')
