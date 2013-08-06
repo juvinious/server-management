@@ -170,8 +170,8 @@ def add_vhost(userdir, servername):
                Allow from All
         </Directory>
 </VirtualHost>""".format(directory=userdir, server=servername)
-    runcmd('echo "{content}" >> /etc/httpd/conf.d/vhost.conf'.format(content=entry))
-    runcmd('mkdir --context=system_u:object_r:httpd_config_t:s0 /home/{user}/www'.format(user=userdir))
+    runcmd('echo "{content}" >> /etc/httpd/conf.d/{vhost}.conf'.format(content=entry, vhost=servername))
+    runcmd('mkdir -p --context=system_u:object_r:httpd_config_t:s0 /home/{user}/www'.format(user=userdir))
     runcmd('chown -R {user}:{user} /home/{user}/www'.format(user=userdir))
     #runcmd('chmod -R 755 /home/{user}/www'.format(user=userdir))
     runcmd('chmod o+rx /home/{user} /home/{user}/www'.format(user=userdir))
@@ -214,7 +214,7 @@ def add_vhost_ssl(userdir, servername, password):
 </VirtualHost>""".format(directory=userdir, server=servername)
     
     # Add ssl entry
-    runcmd('echo "{content}" >> /etc/httpd/conf.d/ssl.conf'.format(content=entry))
+    runcmd('echo "{content}" >> /etc/httpd/conf.d/{vhost}.conf'.format(content=entry, vhost=servername))
     
     # Create self-signed certificates
     runcmd('mkdir -p ~/cert-temp')
@@ -253,12 +253,12 @@ def add_vhost_ssl(userdir, servername, password):
         runcmd('openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt')
         
         if not exists('/etc/httpd/ssl'):
-            runcmd('mkdir /etc/httpd/ssl')
+            runcmd('mkdir -p /etc/httpd/ssl')
         runcmd('cp server.crt /etc/httpd/ssl/{server}.crt'.format(server=servername))
         runcmd('cp server.key /etc/httpd/ssl/{server}.key'.format(server=servername))
         
     runcmd('rm -fr ~/cert-temp')
-    runcmd('mkdir --context=system_u:object_r:httpd_config_t:s0 /home/{user}/wwws'.format(user=userdir))
+    runcmd('mkdir -p --context=system_u:object_r:httpd_config_t:s0 /home/{user}/wwws'.format(user=userdir))
     runcmd('chown -R {user}:{user} /home/{user}/wwws'.format(user=userdir))
     #runcmd('chmod -R 755 /home/{user}/wwws'.format(user=userdir))
     runcmd('chmod o+rx /home/{user} /home/{user}/wwws'.format(user=userdir))
@@ -427,13 +427,13 @@ def install_git():
     if not exists('/home/git'):
         append('/etc/shells', '/usr/bin/git-shell', useSudo())
         runcmd('adduser -s /usr/bin/git-shell git')
-        runcmd('mkdir /home/git/.ssh')
+        runcmd('mkdir -p /home/git/.ssh')
         runcmd('touch /home/git/.ssh/authorized_keys')
         runcmd('chmod 700 /home/git/.ssh')
         runcmd('chmod 600 /home/git/.ssh/authorized_keys')
         runcmd('chown -R git:git /home/git/.ssh')
         # Create the repository home
-        runcmd('mkdir /opt/git')
+        runcmd('mkdir -p /opt/git')
         runcmd('chown -R git:git /opt/git')
 
 # create git repository
@@ -442,7 +442,7 @@ def create_git_repository(name):
     if not exists('/home/git'):
         print 'Gitorius must be installed first before trying to add repositories'
         return
-    runcmd('mkdir /opt/git/{repo}.git'.format(repo=name))
+    runcmd('mkdir -p /opt/git/{repo}.git'.format(repo=name))
     with cd('/opt/git/{repo}.git'.format(repo=name)):
         runcmd('git --bare init')
     runcmd('chown -R git:git /opt/git/{repo}.git'.format(repo=name))
