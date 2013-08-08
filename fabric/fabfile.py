@@ -538,8 +538,9 @@ def install_hadoop(platform='64', version='1.7'):
     install_java(platform, version)
     runcmd('mkdir -p hadoop')
     with cd('hadoop'):
-        hadoop = 'hadoop-1.1.2'
-        url = 'http://mirrors.ibiblio.org/apache/hadoop/common/stable/'
+        version = '1.2.1'
+        hadoop = 'hadoop-' + version
+        url = 'http://mirror.sdunix.com/apache/hadoop/common/hadoop-{ver}/'.format(ver=version)
         runcmd('wget ' + url + hadoop + '-bin.tar.gz')
         runcmd('tar xvzf ' + hadoop + '-bin.tar.gz')
         runcmd('mv ' + hadoop + ' /opt/hadoop')
