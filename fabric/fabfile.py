@@ -12,6 +12,7 @@ if not os.path.exists('settings.py'):
     print 'initializing settings file...'
     print
     baseSettings = """from fabric.api import *
+env.user = root
 env.hosts = ['127.0.0.1']
 
 # This can be used to decorate functions, not used right now
@@ -37,7 +38,10 @@ def haveRC():
 # Decorator for checking ssh user name and other things
 def runChecks(func):
     def check(*args, **kargs):
-        if not haveRC():
+        if not os.path.exists('settings.py'):
+            pass
+        # Ignore this stuff for now
+        elif not haveRC():
             print 'Please run setup_env_user to setup ssh username'
             exit(0)
         elif not 'user =' in open('{rc}'.format(rc=env.rcfile)).read():
@@ -117,7 +121,7 @@ def uname():
     runcmd('uname -a')
 
 @runChecks
-def add_user(username, password, resetpasswd, groups=''):
+def add_user(username, password, resetpasswd, groups='', sshd='sshd'):
     usercmd = 'adduser {name}'.format(name=username)
     resetpasswd = stringToBool(resetpasswd)
     if groups:
@@ -128,7 +132,7 @@ def add_user(username, password, resetpasswd, groups=''):
         runcmd('chage -d 0 {name}'.format(name=username))
     # Add to ssh
     sed('/etc/ssh/sshd_config', 'AllowUsers (.*)$', 'AllowUsers \\1 {name}'.format(name=username), '', useSudo())
-    runcmd('/etc/init.d/sshd restart')
+    runcmd('/etc/init.d/{0}'.format(sshd) + ' restart')
 
 @runChecks
 def enable_root_ssh(enable):
