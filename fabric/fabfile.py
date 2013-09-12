@@ -13,19 +13,14 @@ if not os.path.exists('settings.py'):
     print 'initializing settings file...'
     print
     baseSettings = """from fabric.api import *
-env.user = None
+env.user = root
 env.hosts = ['127.0.0.1']
 
 # This can be used to decorate functions, not used right now
 #env.roledefs = {
 #    'initial-setup': ['root@127.0.0.1',],
 #    'otherwise': ['127.0.0.1'],
-#}
-
-########### No need to modify this ###############
-if not env.user:
-    env.usernotset = True
-"""
+#}"""
     local('echo "%s" > settings.py' % baseSettings)
     print
     print 'You should fill out the server settings in settings.py'
@@ -33,28 +28,26 @@ if not env.user:
 else:
     import settings as ssettings
 
+# Don't have to set env.user use ~/.fabricrc
+# And set user = your_ssh_user_name
+# Or you can run setup_env_user and answer the questions
+#env.user = 'someuser'
+
 def haveRC():
     return os.path.exists(env.rcfile)
 
 # Decorator for checking ssh user name and other things
 def runChecks(func):
     def check(*args, **kargs):
-        # No need for RC right now
-        """
-        if not haveRC():
+        if not os.path.exists('settings.py'):
+            pass
+        # Ignore this stuff for now
+        elif not haveRC():
             print 'Please run setup_env_user to setup ssh username'
             exit(0)
         elif not 'user =' in open('{rc}'.format(rc=env.rcfile)).read():
             print 'Please run setup_env_user to setup ssh username'
             exit(0)
-        """
-        try:
-            import getpass
-            if env.usernotset:
-                print 'Using default username {0} in environment'.format(getpass.getuser())
-                print 'You can modify this behavior by setting it in settings.py'
-        except AttributeError:
-            print 'Current username {0}'.format(env.user)
         return func(*args, **kargs)
     return check
 
@@ -129,7 +122,7 @@ def uname():
     runcmd('uname -a')
 
 @runChecks
-def add_user(username, password, resetpasswd, groups=''):
+def add_user(username, password, resetpasswd, groups='', sshd='sshd'):
     usercmd = 'adduser {name}'.format(name=username)
     resetpasswd = stringToBool(resetpasswd)
     if groups:
@@ -140,7 +133,7 @@ def add_user(username, password, resetpasswd, groups=''):
         runcmd('chage -d 0 {name}'.format(name=username))
     # Add to ssh
     sed('/etc/ssh/sshd_config', 'AllowUsers (.*)$', 'AllowUsers \\1 {name}'.format(name=username), '', useSudo())
-    runcmd('/etc/init.d/sshd restart')
+    runcmd('/etc/init.d/{0}'.format(sshd) + ' restart')
 
 @runChecks
 def enable_root_ssh(enable):
@@ -171,11 +164,10 @@ def add_vhost(userdir, servername):
                Allow from All
         </Directory>
 </VirtualHost>""".format(directory=userdir, server=servername)
-    runcmd('echo "{content}" >> /etc/httpd/conf.d/{vhost}.conf'.format(content=entry, vhost=servername))
-    runcmd('mkdir -p --context=system_u:object_r:httpd_config_t:s0 /home/{user}/www'.format(user=userdir))
+    runcmd('echo "{content}" >> /etc/httpd/conf.d/vhost.conf'.format(content=entry))
+    runcmd('mkdir /home/{user}/www'.format(user=userdir))
     runcmd('chown -R {user}:{user} /home/{user}/www'.format(user=userdir))
-    #runcmd('chmod -R 755 /home/{user}/www'.format(user=userdir))
-    runcmd('chmod o+rx /home/{user} /home/{user}/www'.format(user=userdir))
+    runcmd('chmod -R 755 /home/{user}/www'.format(user=userdir))
     runcmd('chcon -R system_u:object_r:httpd_sys_content_t:s0 /home/{user}'.format(user=userdir))
     runcmd('service httpd restart')
 
@@ -215,7 +207,7 @@ def add_vhost_ssl(userdir, servername, password):
 </VirtualHost>""".format(directory=userdir, server=servername)
     
     # Add ssl entry
-    runcmd('echo "{content}" >> /etc/httpd/conf.d/{vhost}.conf'.format(content=entry, vhost=servername))
+    runcmd('echo "{content}" >> /etc/httpd/conf.d/ssl.conf'.format(content=entry))
     
     # Create self-signed certificates
     runcmd('mkdir -p ~/cert-temp')
@@ -254,15 +246,14 @@ def add_vhost_ssl(userdir, servername, password):
         runcmd('openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt')
         
         if not exists('/etc/httpd/ssl'):
-            runcmd('mkdir -p /etc/httpd/ssl')
+            runcmd('mkdir /etc/httpd/ssl')
         runcmd('cp server.crt /etc/httpd/ssl/{server}.crt'.format(server=servername))
         runcmd('cp server.key /etc/httpd/ssl/{server}.key'.format(server=servername))
         
     runcmd('rm -fr ~/cert-temp')
-    runcmd('mkdir -p --context=system_u:object_r:httpd_config_t:s0 /home/{user}/wwws'.format(user=userdir))
+    runcmd('mkdir /home/{user}/wwws'.format(user=userdir))
     runcmd('chown -R {user}:{user} /home/{user}/wwws'.format(user=userdir))
-    #runcmd('chmod -R 755 /home/{user}/wwws'.format(user=userdir))
-    runcmd('chmod o+rx /home/{user} /home/{user}/wwws'.format(user=userdir))
+    runcmd('chmod -R 755 /home/{user}/wwws'.format(user=userdir))
     runcmd('chcon -R system_u:object_r:httpd_sys_content_t:s0 /home/{user}'.format(user=userdir))
     runcmd('service httpd restart')
 
@@ -311,89 +302,11 @@ def install_lamp(update=True):
     runcmd('/etc/init.d/iptables save')
     runcmd('service iptables restart')
     
-    # Uncomment virtual host name for *:80
-    uncomment('/etc/httpd/conf/httpd.conf', '^#NameVirtualHost\s\*\:80', useSudo())
-    
-    # Add index.html index.index.var index.php to DirectoryIndex
-    insert_line_after('^\<Directory /\>$', 'DirectoryIndex index.html index.html.var index.php', '/etc/httpd/conf/httpd.conf')
-    
     # Add virtual host name for ssl so _default_ doesn't take precedence
     append('/etc/httpd/conf.d/ssl.conf', 'NameVirtualHost *:443', useSudo())
     
-    # Set selinux to allow reading of user directories
-    runcmd('setsebool -P httpd_read_user_content on')
-    
     # Start apache
     runcmd('service httpd start')
-
-# Install Mono
-# http://stackoverflow.com/questions/14901271/installing-mod-mono-and-xsp4-on-centos-6-3
-@runChecks
-def install_mono(areyousure=False, update=True):
-    if stringToBool(areyousure) == False:
-        print 'Installing mono will require you to disable selinux'
-        print 'rerun fab install_mono:y to install anyways'
-        return
-    if stringToBool(update) == True:
-        # update
-        runcmd('yum -y update')
-    if not check_package_installed('httpd'):
-        print 'Install apache first (install_lamp)'
-        return
-    # Requisites 
-    app_list = ['httpd-devel',
-                'libpng-devel',
-                'libjpeg-devel',
-                'giflib-devel',
-                'libtiff-devel',
-                'libX11-devel',
-                'gcc*',
-                'fontconfig-devel',
-                'bzip2']
-    runcmd('yum -y install ' + ' '.join(map(str, app_list)))
-    runcmd('mkdir -p /opt/mono')
-    with cd('/tmp'):
-        modules = [['http://download.mono-project.com/sources/mono/', 'mono-2.10.9', '.tar.bz2'],
-                    ['http://download.mono-project.com/sources/xsp/', 'xsp-2.10.2', '.tar.bz2'],
-                    ['http://download.mono-project.com/sources/mod_mono/', 'mod_mono-2.10', '.tar.bz2'],
-                    ['http://download.mono-project.com/sources/libgdiplus/', 'libgdiplus-2.10', '.tar.bz2']]
-        for module in modules:
-            runcmd('wget {0}'.format(''.join(module)))
-            runcmd('tar xjf {0}'.format(module[1] + module[2]))
-        
-        # Do compilation of modules
-        # libgdiplus
-        with cd(modules[3][1]):
-            runcmd('./configure --prefix=/opt/mono')
-            runcmd('make && make install')
-        
-        # mono
-        with cd(modules[0][1]):
-            runcmd('./configure --prefix=/opt/mono --with-libgdiplus=/opt/mono')
-            runcmd('make && make install')
-            
-        # Export variables
-        append('/etc/profile', '######### MONO CONFIG ##############', useSudo())
-        append('/etc/profile', 'export PATH=$PATH:/opt/mono/bin', useSudo())
-        append('/etc/profile', 'export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/opt/mono/lib/pkgconfig', useSudo())
-        
-        # xsp
-        with cd(modules[1][1]):
-            runcmd('source /etc/profile')
-            runcmd('./configure --prefix=/opt/mono')
-            runcmd('make && make install')
-            
-        # mod_mono
-        with cd(modules[2][1]):
-            runcmd('source /etc/profile')
-            runcmd('./configure --prefix=/opt/mono --with-mono-prefix=/opt/mono')
-            runcmd('make && make install')
-        
-        # Add mono configuration
-        runcmd('cp /etc/httpd/conf/mod_mono.conf /etc/httpd/conf.d/')
-        
-        # SE Linux
-        runcmd("chcon -t httpd_sys_content_t \'/opt/mono/bin\'")
 
 # Setup MySql
 @runChecks
@@ -402,18 +315,17 @@ def install_mysql(password):
         runcmd('yum -y update')
         runcmd('yum -y install mysql-server')
     runcmd('chkconfig --levels 235 mysqld on')
-    runcmd('service mysqld start')
-    
+    runcmd('service start mysqld')
     # Secure mysql
     setup = []
-    setup += expect('Enter current password for root \(enter for none\):','')
-    setup += expect('Set root password\? \[Y/n\]','y')
+    setup += expect('Enter current password for root (enter for none):','')
+    setup += expect('Set root password? \[Y/n\]','y')
     setup += expect('New password:', password)
     setup += expect('Re-enter new password:', password)
-    setup += expect('Remove anonymous users\? \[Y/n\]', 'y')
-    setup += expect('Disallow root login remotely\? \[Y/n\]', 'y')
-    setup += expect('Remove test database and access to it\? \[Y/n\]', 'y')
-    setup += expect('Reload privilege tables now\? \[Y/n\]', 'y')
+    setup += expect('Remove anonymous users? \[Y/n\]', 'y')
+    setup += expect('Disallow root login remotely? \[Y/n\]', 'y')
+    setup += expect('Remove test database and access to it? \[Y/n\]', 'y')
+    setup += expect('Reload privilege tables now? \[Y/n\]', 'y')
 
     with expecting(setup):
         eruncmd('mysql_secure_installation')
@@ -428,13 +340,13 @@ def install_git():
     if not exists('/home/git'):
         append('/etc/shells', '/usr/bin/git-shell', useSudo())
         runcmd('adduser -s /usr/bin/git-shell git')
-        runcmd('mkdir -p /home/git/.ssh')
+        runcmd('mkdir /home/git/.ssh')
         runcmd('touch /home/git/.ssh/authorized_keys')
         runcmd('chmod 700 /home/git/.ssh')
         runcmd('chmod 600 /home/git/.ssh/authorized_keys')
         runcmd('chown -R git:git /home/git/.ssh')
         # Create the repository home
-        runcmd('mkdir -p /opt/git')
+        runcmd('mkdir /opt/git')
         runcmd('chown -R git:git /opt/git')
 
 # create git repository
@@ -443,7 +355,7 @@ def create_git_repository(name):
     if not exists('/home/git'):
         print 'Gitorius must be installed first before trying to add repositories'
         return
-    runcmd('mkdir -p /opt/git/{repo}.git'.format(repo=name))
+    runcmd('mkdir /opt/git/{repo}.git'.format(repo=name))
     with cd('/opt/git/{repo}.git'.format(repo=name)):
         runcmd('git --bare init')
     runcmd('chown -R git:git /opt/git/{repo}.git'.format(repo=name))
@@ -539,9 +451,8 @@ def install_hadoop(platform='64', version='1.7'):
     install_java(platform, version)
     runcmd('mkdir -p hadoop')
     with cd('hadoop'):
-        version = '1.2.1'
-        hadoop = 'hadoop-' + version
-        url = 'http://mirror.sdunix.com/apache/hadoop/common/hadoop-{ver}/'.format(ver=version)
+        hadoop = 'hadoop-1.1.2'
+        url = 'http://mirrors.ibiblio.org/apache/hadoop/common/stable/'
         runcmd('wget ' + url + hadoop + '-bin.tar.gz')
         runcmd('tar xvzf ' + hadoop + '-bin.tar.gz')
         runcmd('mv ' + hadoop + ' /opt/hadoop')
@@ -562,7 +473,6 @@ def install_kerberos(ad_controller, ad_domain):
     app_list = ['pam_krb5',
                 'fprintd-pam']
     runcmd('yum -y install ' + ' '.join(map(str, app_list)))
-    
     # Reference http://www.server-world.info/en/note?os=CentOS_6&p=krb
     runcmd('authconfig --enablekrb5 --krb5kdc=' + ad_controller + ' --krb5realm=' + ad_domain.upper() + " --updateall")
     
@@ -607,15 +517,7 @@ def initialize_box():
                 'kernel-headers',
                 'make',
                 'gcc',
-                'bison',
-                'pkgconfig',
-                'glib2-devel',
-                'gettext',
-                'ntp',
-                'libtool',
-                'automake',
-                'autoconf',
-                'unzip']
+                'ntp']
     runcmd('yum -y install ' + ' '.join(map(str, app_list)))
 
     # Setup sudoers to wheel
@@ -629,11 +531,7 @@ def initialize_box():
     
     lines = """
 # Users
-AllowUsers root """
-
-    if not env.user == 'root':
-	lines += env.user
-	
+AllowUsers root"""
     runcmd('echo "{content}" >> /etc/ssh/sshd_config'.format(content=lines))
     # Do not disable this unless you want a less secure box -miguel
     #runcmd('sed -i \'s/GSSAPIAuthentication\ yes/GSSAPIAuthentication\ no/g\' /etc/ssh/sshd_config')
