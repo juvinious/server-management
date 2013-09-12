@@ -6,7 +6,8 @@ from ilogue.fexpect import expect, expecting, run as erun, sudo as esudo
 
 # This assuming yum based repositories (CentOS)
 # TODO
-# Generalize to use either apt or yum
+#  - Generalize to use either apt or yum
+#  - Add rsync -aAXvz /* user@hostname:/some/dir --exclude={/dev/*,/proc/*,/sys/*,/tmp/*,/run/*,/mnt/*,/media/*,/lost+found}
 
 if not os.path.exists('settings.py'):
     print 'initializing settings file...'
