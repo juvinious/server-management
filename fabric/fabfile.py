@@ -42,12 +42,12 @@ def runChecks(func):
         if not os.path.exists('settings.py'):
             pass
         # Ignore this stuff for now
-        elif not haveRC():
-            print 'Please run setup_env_user to setup ssh username'
-            exit(0)
-        elif not 'user =' in open('{rc}'.format(rc=env.rcfile)).read():
-            print 'Please run setup_env_user to setup ssh username'
-            exit(0)
+        #elif not haveRC():
+        #    print 'Please run setup_env_user to setup ssh username'
+        #    exit(0)
+        #elif not 'user =' in open('{rc}'.format(rc=env.rcfile)).read():
+            #print 'Please run setup_env_user to setup ssh username'
+            #exit(0)
         return func(*args, **kargs)
     return check
 
