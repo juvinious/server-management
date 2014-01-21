@@ -164,8 +164,10 @@ def add_vhost(userdir, servername):
                Allow from All
         </Directory>
 </VirtualHost>""".format(directory=userdir, server=servername)
-    runcmd('echo "{content}" >> /etc/httpd/conf.d/vhost.conf'.format(content=entry))
-    runcmd('mkdir /home/{user}/www'.format(user=userdir))
+    runcmd('echo "{content}" >> /etc/httpd/conf.d/{server}.conf'.format(content=entry, server=servername))
+    runcmd('mkdir -p /home/{user}/www'.format(user=userdir))
+    if not exists('/home/{user}/www/index.php'.format(user=userdir)):
+        runcmd('echo "Hi from {0} webserver on port 80." > /home/{0}/www/index.php'.format(userdir))
     runcmd('chown -R {user}:{user} /home/{user}/www'.format(user=userdir))
     runcmd('chmod -R 755 /home/{user}/www'.format(user=userdir))
     runcmd('chcon -R system_u:object_r:httpd_sys_content_t:s0 /home/{user}'.format(user=userdir))
@@ -207,7 +209,7 @@ def add_vhost_ssl(userdir, servername, password):
 </VirtualHost>""".format(directory=userdir, server=servername)
     
     # Add ssl entry
-    runcmd('echo "{content}" >> /etc/httpd/conf.d/ssl.conf'.format(content=entry))
+    runcmd('echo "{content}" >> /etc/httpd/conf.d/{server}.conf'.format(content=entry, server=servername))
     
     # Create self-signed certificates
     runcmd('mkdir -p ~/cert-temp')
@@ -246,12 +248,14 @@ def add_vhost_ssl(userdir, servername, password):
         runcmd('openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt')
         
         if not exists('/etc/httpd/ssl'):
-            runcmd('mkdir /etc/httpd/ssl')
+            runcmd('mkdir -p /etc/httpd/ssl')
         runcmd('cp server.crt /etc/httpd/ssl/{server}.crt'.format(server=servername))
         runcmd('cp server.key /etc/httpd/ssl/{server}.key'.format(server=servername))
         
     runcmd('rm -fr ~/cert-temp')
-    runcmd('mkdir /home/{user}/wwws'.format(user=userdir))
+    runcmd('mkdir -p /home/{user}/wwws'.format(user=userdir))
+    if not exists('/home/{user}/wwws/index.php'.format(user=userdir)):
+        runcmd('echo "Hi from {0} webserver on port 443." >> /home/{0}/wwws/index.php'.format(userdir))
     runcmd('chown -R {user}:{user} /home/{user}/wwws'.format(user=userdir))
     runcmd('chmod -R 755 /home/{user}/wwws'.format(user=userdir))
     runcmd('chcon -R system_u:object_r:httpd_sys_content_t:s0 /home/{user}'.format(user=userdir))
