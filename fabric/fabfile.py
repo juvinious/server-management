@@ -172,6 +172,51 @@ def add_vhost(userdir, servername):
     runcmd('chmod -R 755 /home/{user}/www'.format(user=userdir))
     runcmd('chcon -R system_u:object_r:httpd_sys_content_t:s0 /home/{user}'.format(user=userdir))
     runcmd('service httpd restart')
+    
+    
+@runChecks
+def generate_vhost_ssl_cert(servername, password):
+    # Create self-signed certificates
+    runcmd('mkdir -p ~/cert-temp')
+    with cd('~/cert-temp'):
+        # generate private key
+        privatekey = []
+        privatekey += expect('Enter pass phrase for server.key:', password)
+        privatekey += expect('Verifying - Enter pass phrase for server.key:', password)
+
+        with expecting(privatekey):
+            eruncmd('openssl genrsa -des3 -out server.key 2048')
+            
+        csr = []
+        csr += expect('Enter pass phrase for server.key:', password)
+        csr += expect('Country Name \(2 letter code\) \[.*\]:', 'US')
+        csr += expect('State or Province Name \(full name\) \[.*\]:', 'Florida')
+        csr += expect('Locality Name \(eg, city\) \[.*\]:', 'Miami')
+        csr += expect('Organization Name \(eg, company\)', 'Miami')
+        csr += expect('Organizational Unit Name \(eg, section\) \[\]:', 'Miami')
+        csr += expect('Common Name', servername);
+        csr += expect('Email Address \[\]:', 'noreply@noemail.com')
+        csr += expect('A challenge password \[\]:', password)
+        csr += expect('An optional company name \[\]:', '')
+        
+        with expecting(csr):
+            eruncmd('openssl req -new -key server.key -out server.csr')
+            
+        runcmd('cp server.key server.key.org')
+        
+        serverkey = []
+        serverkey += expect('Enter pass phrase', password)
+        
+        with expecting(serverkey):
+            eruncmd('openssl rsa -in server.key.org -out server.key')
+            
+        runcmd('openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt')
+        
+        if not exists('/etc/httpd/ssl'):
+            runcmd('mkdir -p /etc/httpd/ssl')
+        runcmd('cp server.crt /etc/httpd/ssl/{server}.crt'.format(server=servername))
+        runcmd('cp server.key /etc/httpd/ssl/{server}.key'.format(server=servername))
+    runcmd('rm -fr ~/cert-temp')
 
 @runChecks
 def add_vhost_ssl(userdir, servername, password):
@@ -212,47 +257,8 @@ def add_vhost_ssl(userdir, servername, password):
     runcmd('echo "{content}" >> /etc/httpd/conf.d/{server}.conf'.format(content=entry, server=servername))
     
     # Create self-signed certificates
-    runcmd('mkdir -p ~/cert-temp')
-    with cd('~/cert-temp'):
-        # generate private key
-        privatekey = []
-        privatekey += expect('Enter pass phrase for server.key:', password)
-        privatekey += expect('Verifying - Enter pass phrase for server.key:', password)
-
-        with expecting(privatekey):
-            eruncmd('openssl genrsa -des3 -out server.key 1024')
-            
-        csr = []
-        csr += expect('Enter pass phrase for server.key:', password)
-        csr += expect('Country Name \(2 letter code\) \[.*\]:', 'US')
-        csr += expect('State or Province Name \(full name\) \[.*\]:', 'Florida')
-        csr += expect('Locality Name \(eg, city\) \[.*\]:', 'Miami')
-        csr += expect('Organization Name \(eg, company\)', 'Miami')
-        csr += expect('Organizational Unit Name \(eg, section\) \[\]:', 'Miami')
-        csr += expect('Common Name', servername);
-        csr += expect('Email Address \[\]:', 'noreply@noemail.com')
-        csr += expect('A challenge password \[\]:', password)
-        csr += expect('An optional company name \[\]:', '')
-        
-        with expecting(csr):
-            eruncmd('openssl req -new -key server.key -out server.csr')
-            
-        runcmd('cp server.key server.key.org')
-        
-        serverkey = []
-        serverkey += expect('Enter pass phrase', password)
-        
-        with expecting(serverkey):
-            eruncmd('openssl rsa -in server.key.org -out server.key')
-            
-        runcmd('openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt')
-        
-        if not exists('/etc/httpd/ssl'):
-            runcmd('mkdir -p /etc/httpd/ssl')
-        runcmd('cp server.crt /etc/httpd/ssl/{server}.crt'.format(server=servername))
-        runcmd('cp server.key /etc/httpd/ssl/{server}.key'.format(server=servername))
-        
-    runcmd('rm -fr ~/cert-temp')
+    generate_vhost_ssl_cert(servername, password)
+    
     runcmd('mkdir -p /home/{user}/wwws'.format(user=userdir))
     if not exists('/home/{user}/wwws/index.php'.format(user=userdir)):
         runcmd('echo "Hi from {0} webserver on port 443." >> /home/{0}/wwws/index.php'.format(userdir))
