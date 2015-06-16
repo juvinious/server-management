@@ -504,7 +504,8 @@ def install_kerberos(ad_controller, ad_domain):
     # update
     runcmd('yum -y update')
     # Basic applications
-    app_list = ['pam_krb5',
+    app_list = ['authconfig',
+                'pam_krb5',
                 'fprintd-pam']
     runcmd('yum -y install ' + ' '.join(map(str, app_list)))
     # Reference http://www.server-world.info/en/note?os=CentOS_6&p=krb
