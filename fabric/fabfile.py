@@ -390,15 +390,17 @@ def install_svn():
 
 # Install java
 @runChecks
-def install_java(platform='32', version='1.6'):
-    def grabPackage(using6, filename):
-        if using6 == True:
+def install_java(platform='64', version='1.8'):
+    def grabPackage(version, filename):
+        location = ''
+        cmd = 'wget --no-check-certificate --no-cookies --header "Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F; oraclelicense=accept-securebackup-cookie"'
+        if '1.6' in version:
             location = 'http://download.oracle.com/otn-pub/java/jdk/6u45-b06/'
-            runcmd('wget -O {1} --no-check-certificate --no-cookies --header "Cookie: gpw_e24=http%%3A%%2F%%2Fwww.oracle.com%%2F" "{0}{1}"'.format(location, filename))
-        else:
+        elif '1.7' in version:
             location = 'http://download.oracle.com/otn-pub/java/jdk/7u21-b11/'
-            runcmd('wget -O {1} --no-check-certificate --no-cookies --header "Cookie: gpw_e24=http%%3A%%2F%%2Fwww.oracle.com%%2F" "{0}{1}"'.format(location, filename))
-
+        else:
+            location = 'http://download.oracle.com/otn-pub/java/jdk/8u45-b14/'
+        runcmd('{0} "{1}{2}"'.format(cmd, location, filename))
     def setAlternatives(version, release):
         commands = [['jre/', 'java'], ['', 'jar'], ['','javac'], ['','javaws']]
         for command in commands:
@@ -423,7 +425,7 @@ def install_java(platform='32', version='1.6'):
         for package in packages:
             runcmd('mkdir -p java-temp')
             with cd('java-temp'):
-                grabPackage(True, package)
+                grabPackage(version, package)
                 runcmd('chmod +x %s' % package)
                 runcmd('./%s' % package)
             runcmd('rm -fr java-temp')
@@ -434,29 +436,51 @@ def install_java(platform='32', version='1.6'):
     elif version == '1.7':
         packages = []
         if platform == '32':
-            packages = ['jdk-7u21-linux-i586.rpm', 'jre-7u21-linux-i586.rpm']
+            packages = ['jdk-7u79-linux-i586.rpm', 'jre-7u79-linux-i586.rpm']
         elif platform == '64':
-            packages = ['jdk-7u21-linux-x64.rpm', 'jre-7u21-linux-x64.rpm']
+            packages = ['jdk-7u79-linux-x64.rpm', 'jre-7u79-linux-x64.rpm']
         else:
             print 'Platform is either 32 or 64'
             exit(0)
         for package in packages:
             runcmd('mkdir -p java-temp')
             with cd('java-temp'):
-                grabPackage(False, package)
+                grabPackage(version, package)
                 runcmd('rpm -Uvh %s' % package)
             runcmd('rm -fr java-temp')
         # alternatives
-        setAlternatives('1.7', '21')
+        setAlternatives('1.7', '79')
         # Environment
-        setEnvironment('1.7', '21')
+        setEnvironment('1.7', '79')
+    elif version == '1.8':
+        packages = []
+        if platform == '32':
+            packages = ['jdk-8u45-linux-i586.tar.gz']
+        elif platform == '64':
+            packages = ['jdk-8u45-linux-x64.tar.gz']
+        else:
+            print 'Platform is either 32 or 64'
+            exit(0)
+        for package in packages:
+            runcmd('mkdir -p java-temp')
+            with cd('java-temp'):
+                grabPackage(version, package)
+                #runcmd('rpm -Uvh %s' % package)
+                runcmd('tar xvzf {0}'.format(package))
+                runcmd('mkdir -p /usr/java')
+                runcmd('mv jdk{0}.0_{1} /usr/java'.format(version, '45'))
+            runcmd('rm -fr java-temp')
+        # alternatives
+        setAlternatives('1.8', '45')
+        # Environment
+        setEnvironment('1.8', '45')
     else:
-        print 'Version is either 1.6 or 1.7'
+        print 'Version is either 1.6, 1.7 or 1.8'
         exit(0)
 
 # Install hadoop
 @runChecks
-def install_hadoop(platform='64', version='1.7'):
+def install_hadoop(platform='64', version='1.8'):
     # install java 7
     install_java(platform, version)
     runcmd('mkdir -p hadoop')
